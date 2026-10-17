@@ -1,0 +1,12 @@
+BEGIN;
+CREATE TABLE IF NOT EXISTS branches (id uuid PRIMARY KEY, code varchar(24) NOT NULL UNIQUE, name varchar(160) NOT NULL, city varchar(100) NOT NULL, address varchar(240) NOT NULL, time_zone varchar(100) NOT NULL DEFAULT 'Africa/Johannesburg', status varchar(24) NOT NULL DEFAULT 'Active');
+CREATE TABLE IF NOT EXISTS services (id uuid PRIMARY KEY, code varchar(40) NOT NULL UNIQUE, name varchar(160) NOT NULL, duration_minutes integer NOT NULL CHECK(duration_minutes > 0), is_active boolean NOT NULL DEFAULT true);
+CREATE TABLE IF NOT EXISTS branch_services (branch_id uuid NOT NULL REFERENCES branches(id), service_id uuid NOT NULL REFERENCES services(id), capacity integer NOT NULL DEFAULT 1 CHECK(capacity > 0), is_enabled boolean NOT NULL DEFAULT true, PRIMARY KEY(branch_id,service_id));
+CREATE TABLE IF NOT EXISTS customers (id uuid PRIMARY KEY, first_name text NOT NULL, last_name text NOT NULL, email text NOT NULL, phone text);
+CREATE TABLE IF NOT EXISTS appointments (id uuid PRIMARY KEY, reference text NOT NULL UNIQUE, customer_id uuid NOT NULL REFERENCES customers(id), branch_id uuid NOT NULL REFERENCES branches(id), service_id uuid NOT NULL REFERENCES services(id), starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, status text NOT NULL DEFAULT 'Confirmed', version bigint NOT NULL DEFAULT 0, CONSTRAINT ck_appointment_times CHECK(ends_at > starts_at));
+CREATE INDEX IF NOT EXISTS ix_appointments_branch_start ON appointments(branch_id,starts_at);
+CREATE TABLE IF NOT EXISTS notifications (id uuid PRIMARY KEY, appointment_id uuid NOT NULL REFERENCES appointments(id), channel text NOT NULL, simulation_status text NOT NULL, rendered_content text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS outbox_events (id uuid PRIMARY KEY, event_type text NOT NULL, payload_json jsonb NOT NULL, occurred_at timestamptz NOT NULL DEFAULT now(), published_at timestamptz, attempts integer NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_outbox_unpublished ON outbox_events(occurred_at) WHERE published_at IS NULL;
+CREATE TABLE IF NOT EXISTS audit_entries (id uuid PRIMARY KEY, action text NOT NULL, entity_type text NOT NULL, entity_id text NOT NULL, actor_id text, occurred_at timestamptz NOT NULL DEFAULT now());
+COMMIT;

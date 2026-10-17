@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1" />
+    <ProjectReference Include="../../src/Bams.Application/Bams.Application.csproj" />
+    <ProjectReference Include="../../src/Bams.Domain/Bams.Domain.csproj" />
+    <ProjectReference Include="../../src/Bams.Infrastructure/Bams.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Bams.Api/Bams.Api.csproj" />
+  </ItemGroup>
+</Project>

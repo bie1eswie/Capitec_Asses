@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: bams
+      POSTGRES_PASSWORD: bams_dev_only
+      POSTGRES_DB: bams
+    ports:
+      - "5432:5432"
+    volumes:
+      - bams_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bams -d bams"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+volumes:
+  bams_pgdata:
