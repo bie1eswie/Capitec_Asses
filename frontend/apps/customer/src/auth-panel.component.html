@@ -1,0 +1,26 @@
+      <section class="card auth-card">
+        <div class="eyebrow">Secure appointment booking</div>
+        @if (page()==='register') {
+          <h1>Create your account</h1><p class="muted">Register to book and manage branch visits.</p>
+          <form (ngSubmit)="register()"><div class="grid two"><label class="field">First name<input name="firstName" [(ngModel)]="firstName" required autocomplete="given-name" /></label><label class="field">Last name<input name="lastName" [(ngModel)]="lastName" required autocomplete="family-name" /></label></div>
+          <label class="field">Email address<input name="email" type="email" [(ngModel)]="email" required autocomplete="email" /></label>
+          <label class="field">Phone (optional)<input name="phone" [(ngModel)]="phone" autocomplete="tel" /></label>
+          <label class="field">Password<input name="password" type="password" [(ngModel)]="password" required autocomplete="new-password" /></label>
+          <button class="btn" type="submit" [disabled]="busy()">{{busy()?'Creating account…':'Create account'}}</button></form>
+          <p class="muted mini">Already registered? <button class="text-button" (click)="pageRequested.emit('login')">Log in</button></p>
+        } @else if (page()==='forgot') {
+          <h1>Reset your password</h1><p class="muted">We'll send instructions if your email is registered.</p>
+          <form (ngSubmit)="forgot()"><label class="field">Email address<input name="email" type="email" [(ngModel)]="email" required /></label><button class="btn" [disabled]="busy()">Send instructions</button></form>
+          <p><button class="text-button" (click)="pageRequested.emit('login')">Back to login</button></p>
+        } @else {
+          <h1>Welcome back</h1><p class="muted">Sign in to manage your appointments.</p>
+          <form (ngSubmit)="login()"><label class="field">Email address<input name="email" type="email" [(ngModel)]="email" required autocomplete="username" /></label>
+          <label class="field">Password<input name="password" type="password" [(ngModel)]="password" required autocomplete="current-password" /></label>
+          <div class="row" style="margin-bottom:17px"><span></span><button class="text-button" type="button" (click)="pageRequested.emit('forgot')">Forgot password?</button></div>
+          <button class="btn" type="submit" style="width:100%" [disabled]="busy()">{{busy()?'Signing in…':'Log in'}}</button></form>
+          <p class="muted mini">Don't have an account? <button class="text-button" (click)="pageRequested.emit('register')">Register</button></p>
+        }
+        @if (error()){<div class="alert" role="alert">{{error()}}</div>}
+        @if (message()){<div class="alert success" role="status">{{message()}}</div>}
+        <div class="auth-side"><strong>✓ Safe and convenient</strong><p class="muted mini">Appointments are linked to your signed-in account. No guest tokens are required.</p></div>
+      </section>

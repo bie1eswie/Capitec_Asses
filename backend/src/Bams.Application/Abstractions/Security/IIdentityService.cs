@@ -15,16 +15,6 @@ public interface IIdentityService
 
     Task<IdentityProfile?> FindByIdAsync(string userId, CancellationToken cancellationToken);
 
-    Task<IdentityActionToken?> CreateEmailConfirmationTokenAsync(
-        string userId,
-        CancellationToken cancellationToken);
-
-    Task<IdentityActionToken?> CreateEmailConfirmationTokenForEmailAsync(
-        string email,
-        CancellationToken cancellationToken);
-
-    Task<bool> ConfirmEmailAsync(string userId, string token, CancellationToken cancellationToken);
-
     Task<IdentityActionToken?> CreatePasswordResetTokenAsync(
         string email,
         CancellationToken cancellationToken);

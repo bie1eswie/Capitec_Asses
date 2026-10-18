@@ -14,7 +14,7 @@ public sealed class AppointmentsController(IAppointmentService appointments) : C
     [HttpGet("availability")]
     public async Task<IActionResult> Availability([FromQuery] Guid branchId, [FromQuery] Guid serviceId, [FromQuery] DateOnly date, CancellationToken ct) => Ok(await appointments.AvailabilityAsync(branchId, serviceId, date, ct));
 
-    [Authorize]
+    [Authorize(Policy = "Customer")]
     [HttpPost("appointments")]
     public async Task<IActionResult> Book([FromBody] CreateAppointmentRequest request, [FromHeader(Name = "Idempotency-Key")] string? key, CancellationToken ct)
     {

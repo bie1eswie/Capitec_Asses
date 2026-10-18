@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Bams.Application;
+using Bams.Api.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,7 @@ namespace Bams.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin")]
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = BamsPermissions.OutboxReplay)]
 public sealed class AdminController : ControllerBase
 {
     private readonly IOutboxRepository outbox;

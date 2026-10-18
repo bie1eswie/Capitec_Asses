@@ -17,25 +17,9 @@ public sealed class AuthenticationService(
         CancellationToken cancellationToken)
     {
         var result = await identities.RegisterCustomerAsync(registration, cancellationToken);
-        if (!result.Succeeded || string.IsNullOrWhiteSpace(result.UserId))
-        {
-            return new RegistrationResult(RegistrationStatus.Invalid, result.Errors);
-        }
-
-        var actionToken = await identities.CreateEmailConfirmationTokenAsync(result.UserId, cancellationToken);
-        if (actionToken is null)
-        {
-            return new RegistrationResult(RegistrationStatus.EmailDeliveryFailed, []);
-        }
-
-        var sent = await emailSender.SendEmailConfirmationAsync(
-            actionToken.Email,
-            BuildActionUrl("verify-email", actionToken),
-            cancellationToken);
-
-        return new RegistrationResult(
-            sent ? RegistrationStatus.Succeeded : RegistrationStatus.EmailDeliveryFailed,
-            []);
+        return result.Succeeded
+            ? new RegistrationResult(RegistrationStatus.Succeeded, [])
+            : new RegistrationResult(RegistrationStatus.Invalid, result.Errors);
     }
 
     public async Task<AuthenticationResult> LoginAsync(
@@ -83,7 +67,7 @@ public sealed class AuthenticationService(
         }
 
         var identity = await identities.FindByIdAsync(rotation.UserId, cancellationToken);
-        if (identity is null || !identity.IsEnabled || !identity.EmailConfirmed)
+        if (identity is null || !identity.IsEnabled)
         {
             await refreshTokens.RevokeAllForUserAsync(rotation.UserId, now, cancellationToken);
             return new AuthenticationResult(
@@ -117,32 +101,14 @@ public sealed class AuthenticationService(
     public Task<IdentityProfile?> GetIdentityAsync(string userId, CancellationToken cancellationToken) =>
         identities.FindByIdAsync(userId, cancellationToken);
 
-    public async Task SendEmailVerificationAsync(string email, CancellationToken cancellationToken)
-    {
-        var actionToken = await identities.CreateEmailConfirmationTokenForEmailAsync(email, cancellationToken);
-        if (actionToken is not null)
-        {
-            await emailSender.SendEmailConfirmationAsync(
-                actionToken.Email,
-                BuildActionUrl("verify-email", actionToken),
-                cancellationToken);
-        }
-    }
-
-    public Task<bool> VerifyEmailAsync(
-        string userId,
-        string token,
-        CancellationToken cancellationToken) =>
-        identities.ConfirmEmailAsync(userId, token, cancellationToken);
-
     public async Task SendPasswordResetAsync(string email, CancellationToken cancellationToken)
     {
         var actionToken = await identities.CreatePasswordResetTokenAsync(email, cancellationToken);
-        if (actionToken is not null)
+        if (actionToken is not null && TryBuildActionUrl("reset-password", actionToken, out var resetUrl))
         {
             await emailSender.SendPasswordResetAsync(
                 actionToken.Email,
-                BuildActionUrl("reset-password", actionToken),
+                resetUrl,
                 cancellationToken);
         }
     }
@@ -169,7 +135,6 @@ public sealed class AuthenticationService(
     {
         IdentityAuthenticationStatus.Succeeded => AuthenticationStatus.Succeeded,
         IdentityAuthenticationStatus.LockedOut => AuthenticationStatus.LockedOut,
-        IdentityAuthenticationStatus.EmailNotVerified => AuthenticationStatus.EmailNotVerified,
         IdentityAuthenticationStatus.Disabled => AuthenticationStatus.Disabled,
         _ => AuthenticationStatus.InvalidCredentials
     };
@@ -189,12 +154,13 @@ public sealed class AuthenticationService(
     private static string HashRefreshToken(string refreshToken) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken)));
 
-    private string BuildActionUrl(string route, IdentityActionToken actionToken)
+    private bool TryBuildActionUrl(string route, IdentityActionToken actionToken, out string actionUrl)
     {
         if (!Uri.TryCreate(options.ClientBaseUrl, UriKind.Absolute, out var clientUri) ||
             (!options.AllowInsecureClientUrl && clientUri.Scheme != Uri.UriSchemeHttps))
         {
-            throw new InvalidOperationException("A secure account client URL is not configured.");
+            actionUrl = string.Empty;
+            return false;
         }
 
         var baseUri = new Uri(clientUri.AbsoluteUri.TrimEnd('/') + "/");
@@ -204,6 +170,7 @@ public sealed class AuthenticationService(
             .Replace('+', '-')
             .Replace('/', '_');
         var query = $"userId={Uri.EscapeDataString(actionToken.UserId)}&token={Uri.EscapeDataString(encodedToken)}";
-        return new UriBuilder(actionUri) { Query = query }.Uri.ToString();
+        actionUrl = new UriBuilder(actionUri) { Query = query }.Uri.ToString();
+        return true;
     }
 }

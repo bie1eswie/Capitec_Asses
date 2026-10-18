@@ -1,3 +1,4 @@
+using Bams.Api.Authorization;
 using Bams.Application;
 using Bams.Application.Abstractions.Security;
 using Bams.Infrastructure;
@@ -8,7 +9,6 @@ using FluentValidation.AspNetCore;
 using Hellang.Middleware.ProblemDetails;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -163,13 +163,17 @@ public static class ApiServiceCollectionExtensions
         services.AddAntiforgery(options =>
         {
             options.HeaderName = "X-CSRF-TOKEN";
-            options.Cookie.Name = "__Host-Bams.Csrf";
+            options.Cookie.Name = environment.IsDevelopment() ? "Bams.Csrf" : "__Host-Bams.Csrf";
             options.Cookie.Path = "/";
             options.Cookie.Domain = null;
             options.Cookie.HttpOnly = true;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SecurePolicy = environment.IsDevelopment()
+                ? CookieSecurePolicy.SameAsRequest
+                : CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Strict;
         });
+        services.AddSingleton<IUserPermissionResolver, UserPermissionResolver>();
+        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddAuthorization(options =>
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -177,6 +181,14 @@ public static class ApiServiceCollectionExtensions
                 .Build();
             options.AddPolicy("Customer", policy => policy.RequireRole(IdentityRoleNames.Customer));
             options.AddPolicy("SystemAdministrator", policy => policy.RequireRole(IdentityRoleNames.SystemAdministrator));
+            foreach (var permission in BamsPermissions.All)
+            {
+                options.AddPolicy(permission, policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.AddRequirements(new PermissionRequirement(permission));
+                });
+            }
         });
 
         var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -211,8 +223,6 @@ public static class ApiServiceCollectionExtensions
         });
 
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddHealthChecks().AddDbContextCheck<BamsDbContext>("postgres");
-
         return services;
     }
 }

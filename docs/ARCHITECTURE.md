@@ -21,4 +21,6 @@ Phase 2 introduces booking aggregate behavior, transactional capacity, idempoten
 
 Security boundary: Customer endpoints are public read-only; admin portal **UI is not security**. No mutation endpoints until OIDC/OAuth2 authentication, role/branch scoping and integration tests are added.
 
-Observability: `/health/live`, `/health/ready`; standard ASP.NET request logs; OpenTelemetry integration pending.
+Monitoring feature: `Bams.Api.Monitoring.MonitoringFeatureExtensions` owns health-check registration and endpoint mapping. `/health/live` reports process liveness without dependency probes; `/health/ready` runs checks tagged `ready` (currently PostgreSQL).
+
+Observability feature: `Bams.Api.Observability.ObservabilityFeatureExtensions` owns OpenTelemetry resource metadata, ASP.NET Core and outbound HTTP tracing, ASP.NET Core/runtime metrics, and log export. Development uses console exporters automatically when no OTLP endpoint is configured. Outside Development, signals are exported using OTLP only when the corresponding standard `OTEL_EXPORTER_OTLP_*_ENDPOINT` or shared `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Point OTLP at a collector or gateway to select a backend: AWS ADOT Collector can receive OTLP and export to AWS services; an OpenTelemetry Collector with the Azure Monitor exporter can receive OTLP and export to Azure Monitor. Provider-specific exporters belong in this composition boundary, not in application/domain code.

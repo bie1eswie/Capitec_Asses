@@ -25,6 +25,7 @@ public sealed class IdentityService(
         {
             UserName = email,
             Email = email,
+            EmailConfirmed = true,
             IsEnabled = true
         };
 
@@ -77,11 +78,6 @@ public sealed class IdentityService(
             return new IdentityAuthenticationResult(IdentityAuthenticationStatus.Disabled, null);
         }
 
-        if (!user.EmailConfirmed)
-        {
-            return new IdentityAuthenticationResult(IdentityAuthenticationStatus.EmailNotVerified, null);
-        }
-
         if (await users.IsLockedOutAsync(user))
         {
             return new IdentityAuthenticationResult(IdentityAuthenticationStatus.LockedOut, null);
@@ -109,55 +105,12 @@ public sealed class IdentityService(
         return user is null ? null : await ToProfileAsync(user);
     }
 
-    public async Task<IdentityActionToken?> CreateEmailConfirmationTokenAsync(
-        string userId,
-        CancellationToken cancellationToken)
-    {
-        var user = await users.FindByIdAsync(userId);
-        if (user is null || user.Email is null)
-        {
-            return null;
-        }
-
-        var token = await users.GenerateEmailConfirmationTokenAsync(user);
-        return new IdentityActionToken(user.Id, user.Email, token);
-    }
-
-    public async Task<IdentityActionToken?> CreateEmailConfirmationTokenForEmailAsync(
-        string email,
-        CancellationToken cancellationToken)
-    {
-        var user = await users.FindByEmailAsync(email.Trim());
-        if (user is null || user.Email is null || user.EmailConfirmed || !user.IsEnabled)
-        {
-            return null;
-        }
-
-        var token = await users.GenerateEmailConfirmationTokenAsync(user);
-        return new IdentityActionToken(user.Id, user.Email, token);
-    }
-
-    public async Task<bool> ConfirmEmailAsync(
-        string userId,
-        string token,
-        CancellationToken cancellationToken)
-    {
-        var user = await users.FindByIdAsync(userId);
-        if (user is null)
-        {
-            return false;
-        }
-
-        var result = await users.ConfirmEmailAsync(user, token);
-        return result.Succeeded;
-    }
-
     public async Task<IdentityActionToken?> CreatePasswordResetTokenAsync(
         string email,
         CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(email.Trim());
-        if (user is null || !user.EmailConfirmed || user.Email is null || !user.IsEnabled)
+        if (user is null || user.Email is null || !user.IsEnabled)
         {
             return null;
         }
@@ -189,7 +142,7 @@ public sealed class IdentityService(
     {
         var currentStamp = await users.Users
             .AsNoTracking()
-            .Where(user => user.Id == userId && user.IsEnabled && user.EmailConfirmed)
+            .Where(user => user.Id == userId && user.IsEnabled)
             .Select(user => user.SecurityStamp)
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -220,8 +173,7 @@ public sealed class IdentityService(
             user.Email ?? string.Empty,
             userRoles.ToArray(),
             user.SecurityStamp ?? string.Empty,
-            user.IsEnabled,
-            user.EmailConfirmed);
+            user.IsEnabled);
     }
 
     private async Task<IdentityResult> EnsureRoleAsync(string roleName)

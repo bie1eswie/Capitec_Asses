@@ -42,7 +42,16 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IBranchMembershipRepository, BranchMembershipRepository>();
 
         services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
-        services.AddScoped<IAccountEmailSender, SmtpAccountEmailSender>();
+        var smtpConfigured = !string.IsNullOrWhiteSpace(configuration[$"{SmtpOptions.SectionName}:Host"])
+            && !string.IsNullOrWhiteSpace(configuration[$"{SmtpOptions.SectionName}:FromAddress"]);
+        if (isDevelopment && !smtpConfigured)
+        {
+            services.AddScoped<IAccountEmailSender, DevelopmentAccountEmailSender>();
+        }
+        else
+        {
+            services.AddScoped<IAccountEmailSender, SmtpAccountEmailSender>();
+        }
 
         services.AddScoped<IMessageSerializer, SystemTextJsonMessageSerializer>();
         services.AddScoped<IEventPublisher, PostgreSqlEventPublisher>();

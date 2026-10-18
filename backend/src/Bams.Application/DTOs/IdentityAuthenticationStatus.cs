@@ -5,6 +5,5 @@ public enum IdentityAuthenticationStatus
     Succeeded,
     InvalidCredentials,
     LockedOut,
-    EmailNotVerified,
     Disabled
 }

@@ -1,4 +1,6 @@
 using Bams.Api.DependencyInjection;
+using Bams.Api.Monitoring;
+using Bams.Api.Observability;
 using Bams.Application;
 using Bams.Infrastructure;
 using Hellang.Middleware.ProblemDetails;
@@ -15,6 +17,8 @@ authenticationOptions = new AuthenticationServiceOptions
 builder.Services.AddBamsApplication(authenticationOptions);
 builder.Services.AddBamsInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddBamsApi(builder.Environment, builder.Configuration);
+builder.Services.AddBamsMonitoring();
+builder.Services.AddBamsObservability(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
@@ -27,9 +31,6 @@ await using (var scope = app.Services.CreateAsyncScope())
     {
         var adminEmail = builder.Configuration["Seed:AdminEmail"];
         var adminPassword = builder.Configuration["Seed:AdminPassword"];
-        await using var seedProvider = builder.Services.BuildServiceProvider();
-        await using var seedScope = seedProvider.CreateAsyncScope();
-        await seedService.InitialiseAsync();
         await seedService.SeedAsync(
             adminEmail ?? string.Empty,
             adminPassword ?? string.Empty);
@@ -44,11 +45,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = _ => false
-});
-app.MapHealthChecks("/health/ready");
+app.MapBamsMonitoring();
 app.UseCors("bams-spa");
 app.UseAuthentication();
 app.UseAuthorization();

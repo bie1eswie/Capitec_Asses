@@ -5,5 +5,4 @@ public sealed record IdentityProfile(
     string Email,
     IReadOnlyList<string> Roles,
     string SecurityStamp,
-    bool IsEnabled,
-    bool EmailConfirmed);
+    bool IsEnabled);

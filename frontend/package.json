@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "start:customer": "ng serve customer --port 4200 --proxy-config proxy.conf.json",
-    "start:admin": "ng serve admin --port 4201 --proxy-config proxy.conf.json",
+    "start:customer": "ng serve customer --configuration development --port 4200 --proxy-config proxy.conf.json",
+    "start:admin": "ng serve admin --configuration development --port 4201 --proxy-config proxy.conf.json",
     "build:customer": "ng build customer",
     "build:admin": "ng build admin",
     "test": "ng test customer --watch=false"

@@ -1,4 +1,6 @@
+using Bams.Api.Authorization;
 using System.Security.Claims;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Bams.Api.Contracts.Accounts;
 using Bams.Application;
 using Bams.Application.DTOs;
@@ -14,7 +16,9 @@ namespace Bams.Api.Controllers;
 [Route("api/v1/accounts")]
 public sealed class AccountsController(
     AuthenticationService authentication,
-    IAntiforgery antiforgery) : ControllerBase
+    IAntiforgery antiforgery,
+    IConfiguration configuration,
+    IUserPermissionResolver permissions) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet("csrf-token")]
@@ -43,12 +47,7 @@ public sealed class AccountsController(
 
         return result.Status switch
         {
-            RegistrationStatus.Succeeded => Accepted(new { message = "Check your email to verify your account." }),
-            RegistrationStatus.EmailDeliveryFailed => StatusCode(StatusCodes.Status503ServiceUnavailable, new ProblemDetails
-            {
-                Title = "Email delivery is not configured.",
-                Status = StatusCodes.Status503ServiceUnavailable
-            }),
+            RegistrationStatus.Succeeded => Accepted(new { message = "Your account is ready. You can now sign in." }),
             _ => BadRequest(result.Errors)
         };
     }
@@ -61,9 +60,9 @@ public sealed class AccountsController(
         var result = await authentication.LoginAsync(request.Email, request.Password, cancellationToken);
         return result.Status switch
         {
-            AuthenticationStatus.Succeeded when result.Session is not null => Ok(ToSessionResponse(result.Session)),
+            AuthenticationStatus.Succeeded when result.Session is not null => CreateSessionResponse(result.Session),
             AuthenticationStatus.LockedOut => StatusCode(StatusCodes.Status429TooManyRequests),
-            AuthenticationStatus.EmailNotVerified or AuthenticationStatus.Disabled => Forbid(),
+            AuthenticationStatus.Disabled => Forbid(),
             _ => Unauthorized()
         };
     }
@@ -71,51 +70,24 @@ public sealed class AccountsController(
     [AllowAnonymous]
     [EnableRateLimiting("account")]
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh(
-        [FromBody] RefreshTokenRequest request,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        await antiforgery.ValidateRequestAsync(HttpContext);
+
+        if (!Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken) ||
+            string.IsNullOrWhiteSpace(refreshToken))
         {
-            return BadRequest();
+            return Unauthorized();
         }
 
-        var result = await authentication.RefreshAsync(request.RefreshToken, cancellationToken);
-        return result.Status == AuthenticationStatus.Succeeded && result.Session is not null
-            ? Ok(ToSessionResponse(result.Session))
-            : Unauthorized();
-    }
-
-    [AllowAnonymous]
-    [EnableRateLimiting("account")]
-    [HttpPost("verify-email")]
-    public async Task<IActionResult> VerifyEmail(
-        [FromBody] EmailTokenRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(request.UserId) || !TryDecodeToken(request.Token, out var token))
+        var result = await authentication.RefreshAsync(refreshToken, cancellationToken);
+        if (result.Status != AuthenticationStatus.Succeeded || result.Session is null)
         {
-            return BadRequest();
+            DeleteRefreshCookie();
+            return Unauthorized();
         }
 
-        return await authentication.VerifyEmailAsync(request.UserId, token, cancellationToken)
-            ? NoContent()
-            : BadRequest();
-    }
-
-    [AllowAnonymous]
-    [EnableRateLimiting("account")]
-    [HttpPost("resend-verification")]
-    public async Task<IActionResult> ResendVerification(
-        [FromBody] PasswordResetRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(request.Email))
-        {
-            await authentication.SendEmailVerificationAsync(request.Email.Trim(), cancellationToken);
-        }
-
-        return Accepted(new { message = "If the account needs verification, an email will be sent." });
+        return CreateSessionResponse(result.Session);
     }
 
     [AllowAnonymous]
@@ -157,31 +129,80 @@ public sealed class AccountsController(
 
     [Authorize]
     [HttpGet("session")]
-    public IActionResult Session() => Ok(new
+    public IActionResult Session()
     {
-        UserId = User.FindFirstValue(ClaimTypes.NameIdentifier),
-        Email = User.FindFirstValue(ClaimTypes.Email)
-    });
+        return Ok(new
+        {
+            UserId = User.FindFirstValue(JwtRegisteredClaimNames.Sub),
+            Email = User.FindFirstValue(JwtRegisteredClaimNames.Email),
+            Roles = User.FindAll("role").Select(claim => claim.Value).ToArray(),
+            Permissions = permissions.GetGrantedPermissions(User)
+        });
+    }
 
     [Authorize]
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout(
-        [FromBody] RefreshTokenRequest? request,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
-        await authentication.LogoutAsync(request?.RefreshToken, cancellationToken);
+        await antiforgery.ValidateRequestAsync(HttpContext);
+        Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken);
+        await authentication.LogoutAsync(refreshToken, cancellationToken);
+        DeleteRefreshCookie();
         return NoContent();
     }
 
-    private static object ToSessionResponse(AuthenticationSession session) => new
+    private const string RefreshCookieName = "Bams.Refresh";
+
+    private IActionResult CreateSessionResponse(AuthenticationSession session)
     {
-        userId = session.Identity.UserId,
-        email = session.Identity.Email,
-        roles = session.Identity.Roles,
-        accessToken = session.AccessToken.Value,
-        accessTokenExpiresAt = session.AccessToken.ExpiresAt,
-        refreshToken = session.RefreshToken
-    };
+        Response.Cookies.Append(
+            RefreshCookieName,
+            session.RefreshToken,
+            GetRefreshCookieOptions());
+        Response.Headers.CacheControl = "no-store";
+
+        return Ok(new
+        {
+            userId = session.Identity.UserId,
+            email = session.Identity.Email,
+            roles = session.Identity.Roles,
+            permissions = permissions.GetGrantedPermissions(
+                CreatePermissionPrincipal(session.Identity.Roles)),
+            accessToken = session.AccessToken.Value,
+            accessTokenExpiresAt = session.AccessToken.ExpiresAt
+        });
+    }
+
+    private static System.Security.Claims.ClaimsPrincipal CreatePermissionPrincipal(
+        IReadOnlyList<string> roles)
+    {
+        var identity = new System.Security.Claims.ClaimsIdentity(
+            roles.Select(role => new System.Security.Claims.Claim("role", role)),
+            "Identity",
+            System.Security.Claims.ClaimTypes.Name,
+            "role");
+
+        return new System.Security.Claims.ClaimsPrincipal(identity);
+    }
+
+    private void DeleteRefreshCookie()
+    {
+        Response.Cookies.Delete(RefreshCookieName, GetRefreshCookieOptions());
+    }
+
+    private CookieOptions GetRefreshCookieOptions()
+    {
+        var days = configuration.GetValue<int?>("Authentication:RefreshTokenLifetimeDays") ?? 30;
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = "/api/v1/accounts",
+            Expires = DateTimeOffset.UtcNow.AddDays(days),
+            IsEssential = true
+        };
+    }
 
     private static bool TryDecodeToken(string? token, out string decodedToken)
     {

@@ -1,0 +1,95 @@
+<div class="app">
+  <header class="header"><div class="container header-inner">
+    <a class="brand" (click)="go(auth.session() ? 'home' : 'login')" tabindex="0"><span class="brand-mark">◈</span> BAMS</a>
+    @if (auth.session()) {
+      <nav class="links" aria-label="Customer navigation">
+        <button [class.selected]="page()==='home'" (click)="go('home')">Home</button>
+        <button [class.selected]="page()==='branches'" (click)="go('branches')">Branches</button>
+        <button [class.selected]="page()==='appointments'" (click)="go('appointments')">My Appointments</button>
+      </nav>
+      <div class="header-actions"><span class="muted mini">{{auth.session()?.email}}</span><button class="btn outline" (click)="logout()">Log out</button></div>
+    } @else { <button class="btn outline" (click)="go('login')">Log in</button> }
+  </div></header>
+  <main class="container" [class.auth-wrap]="!auth.session()" [class.page]="!!auth.session()">
+    @if (!auth.session()) {
+      <bams-auth-panel
+        [page]="authPage()"
+        [busy]="busy()"
+        [error]="error()"
+        [message]="message()"
+        (pageRequested)="go($event)"
+        (loginRequested)="loginWith($event)"
+        (registerRequested)="registerWith($event)"
+        (forgotRequested)="forgotWith($event)" />
+    } @else {
+      @if (error()){<div class="alert" role="alert">{{error()}}</div>}
+      @if (page()==='home') {
+        <bams-customer-home (bookRequested)="go('branches')" />
+      }
+      @if (page()==='branches'||page()==='service'||page()==='availability'||page()==='review') {
+        <div class="eyebrow">New appointment</div><h1>Book your branch visit</h1><p class="muted">Complete the steps below to confirm your visit.</p>
+        <div class="stepper"><span class="step" [class.current]="page()==='branches'">1. Branch</span><span class="step" [class.current]="page()==='service'">2. Service</span><span class="step" [class.current]="page()==='availability'">3. Date & time</span><span class="step" [class.current]="page()==='review'">4. Review</span></div>
+      }
+      @if (page()==='branches') {
+        <div class="card"><div class="row"><h2>Find a branch</h2><span class="pill">Branch directory</span></div><label class="field">Search by name or city<input [(ngModel)]="search" (keyup.enter)="loadBranches()" placeholder="Sandton, Rosebank, Midrand" /></label><button class="btn" (click)="loadBranches()">Search</button>
+        <div class="grid section">@for(branch of branches();track branch.id){<button class="choice" (click)="chooseBranch(branch)"><span class="iconbox">⌖</span><span><strong>{{branch.name}}</strong><small>{{branch.address}}, {{branch.city}}</small><small>View available services →</small></span></button>}</div>
+        @if (!busy() && branches().length===0){<p class="muted">No branches found.</p>}</div>
+      }
+      @if (page()==='service') {
+        <div class="card"><h2>Select a service</h2><p class="muted">{{selectedBranch()?.name}}</p><div class="grid two section">@for(service of services();track service.id){<button class="choice" (click)="chooseService(service)"><span class="iconbox">▤</span><span><strong>{{service.name}}</strong><small>{{service.durationMinutes}} minutes</small></span></button>}</div><button class="btn outline section" (click)="go('branches')">← Back</button></div>
+      }
+      @if (page()==='availability') {
+        <div class="card"><h2>Select date and time</h2><p class="muted">{{selectedBranch()?.name}} · {{selectedService()?.name}}</p><label class="field" style="max-width:330px">Appointment date<input type="date" [(ngModel)]="date" (ngModelChange)="loadSlots()" /></label><h3>Available times</h3>
+        @if (busy()){<p class="muted">Checking availability…</p>}
+        <div class="slotgrid">@for(slot of slots();track slot.startsAt){<button class="slot" [class.active]="selectedSlot()?.startsAt===slot.startsAt" (click)="selectedSlot.set(slot)">{{slot.startsAt | date:'HH:mm':'+0200'}}</button>}</div>
+        @if (!busy()&&slots().length===0){<p class="muted">No slots for this date. Choose another date.</p>}
+        <div class="row section"><button class="btn outline" (click)="go('service')">← Back</button><button class="btn" [disabled]="!selectedSlot()" (click)="go('review')">Continue →</button></div></div>
+      }
+      @if (page()==='review') {
+        <div class="card" style="max-width:700px"><h2>Confirm your appointment</h2><p class="muted">Review the details before confirming.</p><div class="booking-summary"><div><span>Branch</span><strong>{{selectedBranch()?.name}}</strong></div><div><span>Service</span><strong>{{selectedService()?.name}}</strong></div><div><span>Date & time</span><strong>{{selectedSlot()?.startsAt | date:'dd MMM yyyy, HH:mm':'+0200'}} SAST</strong></div><div><span>Customer</span><strong>{{auth.session()?.email}}</strong></div></div>
+        <div class="row"><button class="btn outline" (click)="go('availability')">← Back</button><button class="btn" [disabled]="busy()" (click)="confirmBooking()">{{busy()?'Booking…':'Confirm booking'}}</button></div></div>
+      }
+      @if (page()==='reschedule') {
+        <section class="card" style="max-width:760px">
+          <div class="eyebrow">Manage appointment</div>
+          <h2>Reschedule appointment</h2>
+          <p class="muted">{{rescheduling()?.reference}} · Select a new available date and time.</p>
+          <label class="field" style="max-width:330px">
+            New appointment date
+            <input type="date" [(ngModel)]="rescheduleDate" (ngModelChange)="loadRescheduleSlots()" />
+          </label>
+          @if (busy()) { <p class="muted">Checking available times…</p> }
+          <div class="slotgrid">
+            @for (slot of rescheduleSlots(); track slot.startsAt) {
+              <button class="slot" [class.active]="rescheduleSlot()?.startsAt===slot.startsAt"
+                (click)="rescheduleSlot.set(slot)">{{slot.startsAt | date:'HH:mm':'+0200'}}</button>
+            }
+          </div>
+          @if (!busy() && rescheduleSlots().length===0) {
+            <p class="muted">No available slots for this day. Select another date.</p>
+          }
+          <div class="row section">
+            <button class="btn outline" (click)="go('appointments')">Back</button>
+            <button class="btn" [disabled]="busy() || !rescheduleSlot()" (click)="saveReschedule()">
+              {{busy() ? 'Rescheduling…' : 'Confirm new time'}}
+            </button>
+          </div>
+        </section>
+      }
+      @if (page()==='confirmation') {
+        <bams-booking-confirmation [appointment]="confirmation()" (appointmentsRequested)="go('appointments')" />
+      }
+      @if (page()==='appointments') {
+        <div class="row"><div><div class="eyebrow">Your bookings</div><h1>My appointments</h1><p class="muted">View and manage your upcoming and past visits.</p></div><button class="btn" (click)="go('branches')">+ New appointment</button></div>
+        <bams-appointment-list
+          [appointments]="appointments()"
+          [busy]="busy()"
+          (cancelRequested)="cancel($event)"
+          (rescheduleRequested)="reschedule($event)"
+          (newRequested)="go('branches')" />
+      }
+    }
+  </main>
+</div>
+
+<router-outlet />

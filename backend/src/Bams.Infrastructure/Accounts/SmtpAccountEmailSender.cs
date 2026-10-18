@@ -8,12 +8,6 @@ namespace Bams.Infrastructure;
 
 public sealed class SmtpAccountEmailSender(IOptions<SmtpOptions> options) : IAccountEmailSender
 {
-    public Task<bool> SendEmailConfirmationAsync(
-        string email,
-        string confirmationUrl,
-        CancellationToken cancellationToken) =>
-        SendAsync(email, "Verify your BAMS account", "Verify your email address", confirmationUrl, cancellationToken);
-
     public Task<bool> SendPasswordResetAsync(
         string email,
         string resetUrl,
