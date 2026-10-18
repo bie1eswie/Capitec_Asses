@@ -10,7 +10,7 @@ import { AuthPanelComponent, AuthPage } from './auth-panel.component';
 import { AppointmentListComponent } from './appointment-list.component';
 import { CustomerHomeComponent } from './customer-home.component';
 import { BookingConfirmationComponent } from './booking-confirmation.component';
-import { ConfirmDialogComponent } from './confirm-dialog.component';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 
 type CustomerPage = 'login' | 'register' | 'forgot' | 'home' | 'branches' | 'service' | 'availability' | 'review' | 'confirmation' | 'appointments' | 'reschedule';
 
