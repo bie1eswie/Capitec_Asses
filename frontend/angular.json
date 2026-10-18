@@ -41,45 +41,6 @@
           }
         }
       }
-    },
-    "admin": {
-      "projectType": "application",
-      "root": "apps/admin",
-      "sourceRoot": "apps/admin/src",
-      "prefix": "bams",
-      "architect": {
-        "build": {
-          "builder": "@angular/build:application",
-          "options": {
-            "outputPath": "dist/admin",
-            "index": "apps/admin/src/index.html",
-            "browser": "apps/admin/src/main.ts",
-            "polyfills": [
-              "zone.js"
-            ],
-            "tsConfig": "apps/admin/tsconfig.app.json",
-            "styles": [
-              "shared/styles.css"
-            ],
-            "assets": []
-          }
-        },
-        "serve": {
-          "builder": "@angular/build:dev-server",
-          "configurations": {
-            "development": {
-              "buildTarget": "admin:build"
-            }
-          }
-        },
-        "test": {
-          "builder": "@angular/build:unit-test",
-          "options": {
-            "buildTarget": "admin:build",
-            "tsConfig": "apps/admin/tsconfig.app.json"
-          }
-        }
-      }
     }
   },
   "cli": {

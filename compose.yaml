@@ -5,8 +5,6 @@ services:
       POSTGRES_USER: bams
       POSTGRES_PASSWORD: ${BAMS_POSTGRES_PASSWORD:-bams_local_only}
       POSTGRES_DB: bams
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - bams_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +27,6 @@ services:
       Seed__AdminPassword: ${BAMS_SEED_ADMIN_PASSWORD:-BamsAdmin!234567}
       Account__ClientBaseUrl: http://localhost:8080/
       Cors__AllowedOrigins__0: http://localhost:8080
-      Cors__AllowedOrigins__1: http://localhost:8081
     depends_on:
       db:
         condition: service_healthy
@@ -41,20 +38,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: customer
     ports:
       - "8080:8080"
-    depends_on:
-      - api
-    restart: unless-stopped
-
-  admin:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: admin
-    ports:
-      - "8081:8080"
     depends_on:
       - api
     restart: unless-stopped

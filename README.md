@@ -6,7 +6,7 @@ BAMS is a full-stack appointment booking application for customers and branch op
 
 - ASP.NET Core 10 API with Clean Architecture boundaries across API, Application, Domain, and Infrastructure.
 - PostgreSQL with EF Core migrations, transactional booking/idempotency handling, and a durable notification outbox.
-- Angular 21 customer and admin applications, served as static SPAs behind Nginx.
+- Angular 21 customer application, served as a static SPA behind unprivileged Nginx.
 - Docker Compose for the complete local stack; GitHub Actions for backend CI and API image publishing.
 
 ## Run The Full Stack
@@ -20,7 +20,6 @@ docker compose up --build
 The API applies EF Core migrations at startup and seeds a demo branch, services, roles, and administrator. Open:
 
 - Customer portal: [http://localhost:8080](http://localhost:8080)
-- Admin portal: [http://localhost:8081](http://localhost:8081)
 - API readiness: [http://localhost:8080/health/ready](http://localhost:8080/health/ready)
 - OpenAPI/Swagger (Development): [http://localhost:8080/swagger](http://localhost:8080/swagger)
 
@@ -57,7 +56,7 @@ npm ci
 npm run start:customer
 ```
 
-Run the admin app separately with `npm run start:admin`. The development proxy forwards `/api` and `/health` to `http://localhost:5100`.
+The development proxy forwards `/api` and `/health` to `http://localhost:5100`. Staff and administrator authorization remains enforced by the API; this submission does not include a staff-facing frontend.
 
 ## Tests And Builds
 
@@ -74,12 +73,12 @@ From `frontend/`:
 
 ```sh
 npm ci
-npm test
 npm run build:customer
-npm run build:admin
 ```
 
-Docker builds both Angular production bundles and the API Release image. The frontend images run as the unprivileged Nginx user.
+There are currently no Angular unit-test spec files. The `npm test` script is configured but reports that no tests were found; customer UI behavior is therefore verified through the production build and should gain focused unit and browser tests before production release.
+
+Docker builds the customer Angular production bundle and API Release image. The frontend image runs as the unprivileged Nginx user.
 
 ## Design Notes
 

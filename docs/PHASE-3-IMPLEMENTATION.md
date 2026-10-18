@@ -14,7 +14,7 @@ Run `docker compose up -d db`, apply required SQL as documented, then `cd backen
 
 ## Important boundaries / production blockers
 1. **Simulated delivery only**: new users see a management token on-screen, not in email. If they lose it, they cannot manage the appointment until secure real-world verified token recovery is implemented. Do not expose tokens in logs, analytics, URLs, or browser-local storage.
-2. **Admin portal** stays read-only; admin notification history must not expose customer data before OIDC staff authentication, branch-scoped roles and audit authorization are implemented.
+2. Staff-facing UI is not included. Administrative data remains behind API authentication, permissions, branch scoping, and audit requirements.
 3. Outbox polling runs in the API host for pilot deployment; move it to a separate worker process for independently scaled production deployments. It uses PostgreSQL transactions and `SKIP LOCKED` but does not yet use SQS.
 4. Failed outbox events after five attempts require an operations replay/dead-letter procedure (not implemented). The error is logged at batch level, not per-event, to avoid PII leaks; add safe failure diagnostics.
 5. Bookings remain subject to Phase 2 capacity and schedule logic. High-contention bookings, concurrent cancel/reschedule races, token handling, HTTP authorization, integration testing and security assessment are prerequisites for production release.

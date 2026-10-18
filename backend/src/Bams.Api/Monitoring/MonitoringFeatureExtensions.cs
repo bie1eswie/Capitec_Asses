@@ -19,11 +19,11 @@ public static class MonitoringFeatureExtensions
         app.MapHealthChecks("/health/live", new HealthCheckOptions
         {
             Predicate = _ => false
-        });
+        }).AllowAnonymous();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains("ready")
-        });
+        }).AllowAnonymous();
 
         return app;
     }
