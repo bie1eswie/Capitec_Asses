@@ -3,10 +3,10 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: bams
-      POSTGRES_PASSWORD: bams_dev_only
+      POSTGRES_PASSWORD: ${BAMS_POSTGRES_PASSWORD:-bams_local_only}
       POSTGRES_DB: bams
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - bams_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -14,5 +14,50 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: Host=db;Port=5432;Database=bams;Username=bams;Password=${BAMS_POSTGRES_PASSWORD:-bams_local_only}
+      Jwt__DevelopmentSigningKey: ${BAMS_DEV_JWT_SIGNING_KEY:-local-only-bams-jwt-signing-key-change-before-sharing}
+      Seed__Enabled: "true"
+      Seed__AdminEmail: ${BAMS_SEED_ADMIN_EMAIL:-admin@bams.local}
+      Seed__AdminPassword: ${BAMS_SEED_ADMIN_PASSWORD:-BamsAdmin!234567}
+      Account__ClientBaseUrl: http://localhost:8080/
+      Cors__AllowedOrigins__0: http://localhost:8080
+      Cors__AllowedOrigins__1: http://localhost:8081
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "5100"
+    restart: unless-stopped
+
+  customer:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: customer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: admin
+    ports:
+      - "8081:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   bams_pgdata:

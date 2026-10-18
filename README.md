@@ -1,64 +1,93 @@
-# BAMS – Branch Appointment Management System · Phase 1
+# BAMS: Branch Appointment Management System
 
-Angular 21 customer/admin frontends + ASP.NET Core 10 API, organized with Clean Architecture.
+BAMS is a full-stack appointment booking application for customers and branch operations staff. Customers can create accounts, browse branches and services, book and manage appointments, and receive simulated confirmation notifications. Staff access is protected by role and permission-based authorization.
 
-## Included
-- **Real .NET solution source** split into Domain, Application, Infrastructure, API and unit tests.
-- **PostgreSQL/EF Core model** for branches, services, appointments, notifications, audits and transactional outbox.
-- **Functional** `GET /api/v1/branches`, `GET /api/v1/branches/{id}`, `GET /api/v1/branches/{id}/services`, `GET /api/v1/services` and liveness/readiness endpoints.
-- Angular customer portal and admin shell, shared green design tokens, typed API clients, error/loading/empty states.
-- Database SQL bootstrap/seed, Docker Compose, Dockerfile, GitHub Actions workflow and developer documentation.
+## Stack
 
-## Requirements
-- .NET **10 SDK**, Node.js **22.12+**, npm, Docker Engine/Compose.
-- Angular 21.x and TypeScript 5.9.x are used for Node 22 compatibility.
+- ASP.NET Core 10 API with Clean Architecture boundaries across API, Application, Domain, and Infrastructure.
+- PostgreSQL with EF Core migrations, transactional booking/idempotency handling, and a durable notification outbox.
+- Angular 21 customer and admin applications, served as static SPAs behind Nginx.
+- Docker Compose for the complete local stack; GitHub Actions for backend CI and API image publishing.
 
-## Quick start
-```bash
-docker compose up -d db
-# apply base schema + demo seed (once to a fresh database)
-docker compose exec -T db psql -U bams -d bams < database/001_initial.sql
-docker compose exec -T db psql -U bams -d bams < database/002_seed.sql
-cd backend
+## Run The Full Stack
+
+Prerequisites: Docker Engine with the Compose plugin. From the repository root:
+
+```sh
+docker compose up --build
+```
+
+The API applies EF Core migrations at startup and seeds a demo branch, services, roles, and administrator. Open:
+
+- Customer portal: [http://localhost:8080](http://localhost:8080)
+- Admin portal: [http://localhost:8081](http://localhost:8081)
+- API readiness: [http://localhost:8080/health/ready](http://localhost:8080/health/ready)
+- OpenAPI/Swagger (Development): [http://localhost:8080/swagger](http://localhost:8080/swagger)
+
+The local demo administrator is `admin@bams.local` with password `BamsAdmin!234567`. These Compose defaults and the development JWT signing key are for local evaluation only; override them through environment variables for any shared environment:
+
+```text
+BAMS_SEED_ADMIN_EMAIL
+BAMS_SEED_ADMIN_PASSWORD
+BAMS_DEV_JWT_SIGNING_KEY
+BAMS_POSTGRES_PASSWORD
+```
+
+The database is persisted in the `bams_pgdata` volume. To remove the local database and all demo data, run `docker compose down -v`.
+
+## Run Without Docker
+
+Prerequisites: .NET 10 SDK, Node.js 22.12 or newer, npm, and PostgreSQL 17.
+
+1. Create a PostgreSQL database and configure `ConnectionStrings__Postgres` for the API.
+1. From `backend/`, restore and run the API:
+
+```sh
 dotnet restore Bams.slnx
 dotnet run --project src/Bams.Api
-# separate terminal from repo root:
-cd frontend && npm install && npm run start:customer
-# separate terminal: cd frontend && npm run start:admin
-```
-Customer portal: http://localhost:4200; admin portal: http://localhost:4201; API: http://localhost:5100/swagger; readiness: http://localhost:5100/health/ready.
-
-The Angular development proxy routes `/api` to http://localhost:5100. API uses `appsettings.Development.json` only for local demo credentials; use secrets in production.
-
-### Database evolution
-This first phase ships **versioned SQL bootstrap** as the single executable initial database schema. EF Core maps the same schema for runtime access. **Do not call `EnsureCreated()` or independently run EF migrations against this bootstrapped DB.** Before Phase 2 choose one migration authority, preferably EF Core migrations, and baseline the bootstrap into an initial migration. Never modify previously applied SQL files.
-
-### Swagger
-OpenAPI endpoint is `/openapi/v1.json`, and Swagger UI is `/swagger` (development only).
-
-### Environment
-`ConnectionStrings__Postgres` overrides database connection; `ASPNETCORE_ENVIRONMENT` selects environment. Frontends use the dev proxy. Change secrets and allowed origins before production.
-
-## Tests
-```bash
-cd backend && dotnet test Bams.slnx
-cd frontend && npm run build:customer && npm run build:admin
 ```
 
-## Phase boundary
-Bookings, availability calculation, notification processing, authentication/authorization policies, staff operations and full database migration lifecycle remain intentionally **not implemented**. Dashboard displays placeholders, not fabricated metrics. **Do not expose admin endpoints to the internet before authorization is implemented**. See `docs/PHASE-2.md`.
+The API applies EF Core migrations on startup. For local development, set `Seed__Enabled=true`, `Seed__AdminEmail`, and `Seed__AdminPassword` to provision demo data and an administrator.
 
-## Validation note
-This environment does not have the .NET SDK and cannot compile/execute the backend. Source review and structural checks were performed; please run restore/build/tests on a machine with SDK installed.
+1. In another terminal, install dependencies and run the customer application:
 
-## Repository pattern refactor
+```sh
+cd frontend
+npm ci
+npm run start:customer
+```
 
-The backend now uses one class or contract per file, application-owned repository interfaces, infrastructure EF Core repository implementations, and individual `IEntityTypeConfiguration<T>` files. See [Repository Pattern](docs/REPOSITORY-PATTERN.md).
+Run the admin app separately with `npm run start:admin`. The development proxy forwards `/api` and `/health` to `http://localhost:5100`.
 
+## Tests And Builds
 
-## Phase 2 scheduling
-See [`docs/PHASE-2-IMPLEMENTATION.md`](docs/PHASE-2-IMPLEMENTATION.md). Apply `database/003_booking_phase2.sql` after phase 1 scripts.
+From `backend/`:
 
+```sh
+dotnet test Bams.slnx --configuration Release
+dotnet build src/Bams.Api/Bams.Api.csproj --configuration Release
+```
 
-## Phase 3
-See [Phase 3 implementation and limitations](docs/PHASE-3-IMPLEMENTATION.md). Apply `database/004_guest_access_and_notification_processing.sql` after 003. Guest tokens are displayed once on booking, and simulated notifications are generated by a durable database polling worker.
+PostgreSQL integration tests require a test database connection in `BAMS_TEST_POSTGRES`. Without it, those tests are skipped. Do not point this variable at a database containing data you need to keep.
+
+From `frontend/`:
+
+```sh
+npm ci
+npm test
+npm run build:customer
+npm run build:admin
+```
+
+Docker builds both Angular production bundles and the API Release image. The frontend images run as the unprivileged Nginx user.
+
+## Design Notes
+
+- Booking commands enforce customer authorization, capacity rules, idempotency, and transactional persistence.
+- Refresh credentials are held in HttpOnly cookies; API mutations validate antiforgery tokens. Access tokens remain in browser memory.
+- Appointment confirmations are simulated through an outbox-backed worker; no external message is claimed to have been delivered.
+- Admin authorization is enforced by API policies, not by hiding UI controls.
+- API liveness and database readiness are exposed separately at `/health/live` and `/health/ready`.
+- Backend observability uses OpenTelemetry with console export in Development and provider-neutral OTLP configuration for collectors. Frontend monitoring records structured startup and exception events in the browser console.
+
+See [architecture](docs/ARCHITECTURE.md), [production operations](backend/README.PRODUCTION.md), [booking implementation](docs/PHASE-2-IMPLEMENTATION.md), and [notification processing](docs/PHASE-3-IMPLEMENTATION.md) for more detail.
