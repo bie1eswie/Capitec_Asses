@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using Bams.Infrastructure.Identity;
+using Bams.Application.Abstractions.Security;
 
 namespace Bams.Api.Authorization;
 

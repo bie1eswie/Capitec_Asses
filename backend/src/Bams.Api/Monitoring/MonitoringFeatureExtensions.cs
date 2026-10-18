@@ -6,14 +6,6 @@ namespace Bams.Api.Monitoring;
 
 public static class MonitoringFeatureExtensions
 {
-    public static IServiceCollection AddBamsMonitoring(this IServiceCollection services)
-    {
-        services.AddHealthChecks()
-            .AddDbContextCheck<BamsDbContext>("postgres", tags: ["ready"]);
-
-        return services;
-    }
-
     public static WebApplication MapBamsMonitoring(this WebApplication app)
     {
         app.MapHealthChecks("/health/live", new HealthCheckOptions
@@ -26,5 +18,12 @@ public static class MonitoringFeatureExtensions
         }).AllowAnonymous();
 
         return app;
+    }
+
+    public static IServiceCollection AddBamsMonitoring(this IServiceCollection services)
+    {
+        services.AddHealthChecks()
+            .AddDbContextCheck<BamsDbContext>("postgres", tags: ["ready"]);
+        return services;
     }
 }

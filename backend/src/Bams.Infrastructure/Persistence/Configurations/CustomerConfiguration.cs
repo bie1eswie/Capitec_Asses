@@ -1,4 +1,5 @@
 using Bams.Domain;
+using Bams.Application.Abstractions.Security;
 using Bams.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

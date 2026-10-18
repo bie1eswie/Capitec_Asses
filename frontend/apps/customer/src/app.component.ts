@@ -10,13 +10,14 @@ import { AuthPanelComponent, AuthPage } from './auth-panel.component';
 import { AppointmentListComponent } from './appointment-list.component';
 import { CustomerHomeComponent } from './customer-home.component';
 import { BookingConfirmationComponent } from './booking-confirmation.component';
+import { ConfirmDialogComponent } from './confirm-dialog.component';
 
 type CustomerPage = 'login' | 'register' | 'forgot' | 'home' | 'branches' | 'service' | 'availability' | 'review' | 'confirmation' | 'appointments' | 'reschedule';
 
 @Component({
   selector: 'bams-root',
   standalone: true,
-  imports: [FormsModule, DatePipe, AuthPanelComponent, AppointmentListComponent, CustomerHomeComponent, BookingConfirmationComponent, RouterOutlet],
+  imports: [FormsModule, DatePipe, AuthPanelComponent, AppointmentListComponent, CustomerHomeComponent, BookingConfirmationComponent, ConfirmDialogComponent, RouterOutlet],
   templateUrl: './app.component.html'
 })
 export class AppComponent {
@@ -48,6 +49,7 @@ export class AppComponent {
     timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(Date.now() + 86400000);
   private bookingKey: string | null = null;
+  readonly pendingCancellation = signal<AppointmentConfirmation | null>(null);
 
   readonly authPage = computed<AuthPage>(() => {
     const current = this.page();
@@ -191,12 +193,23 @@ export class AppComponent {
   }
 
   cancel(appointment: AppointmentConfirmation): void {
-    if (!confirm(`Cancel appointment ${appointment.reference}?`)) { return; }
+    this.pendingCancellation.set(appointment);
+  }
+
+  confirmCancellation(): void {
+    const appointment = this.pendingCancellation();
+    if (!appointment) return;
+
+    this.pendingCancellation.set(null);
     this.busy.set(true);
     this.appointmentApi.cancel(appointment.id).subscribe({
       next: () => this.loadAppointments(),
       error: () => { this.busy.set(false); this.error.set('Unable to cancel this appointment.'); }
     });
+  }
+
+  dismissCancellation(): void {
+    this.pendingCancellation.set(null);
   }
 
   reschedule(appointment: AppointmentConfirmation): void {

@@ -1,0 +1,15 @@
+<dialog #dialog class="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-message" (cancel)="onCancel($event)" (click)="$event.target === dialog ? dismissed.emit() : null">
+  <div class="confirm-content">
+    <span class="confirm-icon" [class.danger]="destructive()" aria-hidden="true">
+      {{ destructive() ? '!' : '?' }}
+    </span>
+    <div class="confirm-copy">
+      <h2 id="confirm-title">{{ title() }}</h2>
+      <p id="confirm-message">{{ message() }}</p>
+    </div>
+    <div class="confirm-actions">
+      <button type="button" class="confirm-button secondary" (click)="dismissed.emit()">{{ cancelText() }}</button>
+      <button type="button" class="confirm-button" [class.danger]="destructive()" (click)="confirmed.emit()">{{ confirmText() }}</button>
+    </div>
+  </div>
+</dialog>

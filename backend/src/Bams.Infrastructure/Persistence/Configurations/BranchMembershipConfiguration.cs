@@ -1,3 +1,4 @@
+using Bams.Application.Abstractions.Security;
 using Bams.Infrastructure.Identity;
 using Bams.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;

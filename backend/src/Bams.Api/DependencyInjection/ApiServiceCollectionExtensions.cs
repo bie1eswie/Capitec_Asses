@@ -1,4 +1,5 @@
 using Bams.Api.Authorization;
+using Bams.Api.Security;
 using Bams.Application;
 using Bams.Application.Abstractions.Security;
 using Bams.Infrastructure;

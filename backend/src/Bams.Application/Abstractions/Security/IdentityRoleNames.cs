@@ -1,4 +1,4 @@
-namespace Bams.Infrastructure.Identity;
+namespace Bams.Application.Abstractions.Security;
 
 public static class IdentityRoleNames
 {

@@ -92,4 +92,14 @@
   </main>
 </div>
 
+<bams-confirm-dialog
+  [open]="!!pendingCancellation()"
+  title="Cancel this appointment?"
+  [message]="pendingCancellation() ? 'Appointment ' + pendingCancellation()!.reference + ' will be cancelled.' : ''"
+  confirmText="Cancel appointment"
+  cancelText="Keep appointment"
+  [destructive]="true"
+  (confirmed)="confirmCancellation()"
+  (dismissed)="dismissCancellation()" />
+
 <router-outlet />
