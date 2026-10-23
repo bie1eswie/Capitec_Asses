@@ -1,0 +1,125 @@
+@startuml
+title BAMS | Layered Architecture
+
+top to bottom direction
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam dpi 140
+
+skinparam rectangle {
+  RoundCorner 8
+  BorderColor #6b7280
+  FontColor #111827
+}
+skinparam package {
+  BorderColor #6b7280
+  FontColor #111827
+}
+skinparam database {
+  BorderColor #6b7280
+  FontColor #111827
+}
+skinparam cloud {
+  BorderColor #6b7280
+  FontColor #111827
+}
+skinparam queue {
+  BorderColor #6b7280
+  FontColor #111827
+}
+
+actor "Customer / Staff User" as User
+
+rectangle "Presentation Layer" as L1 #dbeafe {
+  rectangle "Angular SPA\n(TypeScript/HTML)" as Frontend #eff6ff
+}
+
+rectangle "API Layer (Bams.Api)" as L2 #dcfce7 {
+  rectangle "REST Controllers\nEndpoints" as Api #f0fdf4
+  rectangle "Auth Middleware\n(JWT Bearer)" as Jwt #f0fdf4
+  rectangle "Observability\nOpenTelemetry" as Obs #f0fdf4
+}
+
+rectangle "Application Layer (Bams.Application)" as L3 #fef3c7 {
+  rectangle "Use Cases /\nApplication Services" as App #fffbeb
+  rectangle "Interfaces / Contracts\n(Repositories, Identity, UoW)" as Contracts #fffbeb
+  rectangle "DTOs" as Dtos #fffbeb
+}
+
+rectangle "Domain Layer (Bams.Domain)" as L4 #fce7f3 {
+  rectangle "Entities & Business Rules\nAppointment, Branch,\nService, Customer" as Domain #fdf2f8
+  rectangle "Domain Exceptions\nAppointmentTransitionException" as DomainEx #fdf2f8
+}
+
+rectangle "Infrastructure Layer (Bams.Infrastructure)" as L5 #ede9fe {
+  rectangle "Outbox Dispatcher\nHosted background worker" as Worker #f5f3ff
+  rectangle "Repositories" as Repos #f5f3ff
+  rectangle "Outbox Processing\nClaim / Publish / Fail / Replay" as Outbox #f5f3ff
+  rectangle "IdentityService\n+ ApplicationUser" as Identity #f5f3ff
+  rectangle "UnitOfWork\nLocks + retries" as Uow #f5f3ff
+  rectangle "EF Core DbContext\n(BamsDbContext)" as DbCtx #f5f3ff
+}
+
+rectangle "Data / External Systems" as L6 #f8fafc {
+  database "PostgreSQL" as Pg #f8fafc
+  queue "Async Boundary\noutbox_events table\n(stored in PostgreSQL)" as AsyncBoundary #fee2e2
+  cloud "Telemetry Backend\nOTLP collector / dev console" as OTel #f8fafc
+}
+
+' Sync path
+User --> Frontend : Uses UI
+Frontend --> Api : HTTPS JSON API\nBearer JWT
+Api --> Jwt : AuthN/AuthZ
+Api --> App : Invoke use cases
+Api --> Obs : Telemetry
+
+App --> Contracts : Abstractions
+App --> Domain : Apply business rules
+Domain --> DomainEx : Raise domain errors
+
+App --> Repos : Repository contracts
+App --> Identity : IdentityService
+App --> Uow : Locked transactions
+
+Repos --> DbCtx
+Identity --> DbCtx
+Uow --> DbCtx
+Outbox --> DbCtx
+DbCtx --> Pg : EF Core + Npgsql
+
+Obs --> OTel : OTLP / dev console
+Worker ..> Obs : Worker telemetry
+
+' Async outbox path (red)
+App -[#dc2626,thickness=2]-> Outbox : Enqueue / publish events
+Outbox -[#dc2626,thickness=2]-> DbCtx : Persist / claim / update
+DbCtx -[#dc2626,thickness=2]-> AsyncBoundary : Outbox rows
+Worker -[#dc2626,thickness=2]-> Outbox : Claim / mark published or failed
+
+' Layout hints
+Frontend -[hidden]down-> Api
+Api -[hidden]down-> App
+App -[hidden]down-> Domain
+Domain -[hidden]down-> Repos
+Repos -[hidden]down-> DbCtx
+DbCtx -[hidden]down-> Pg
+
+legend left
+Gray arrows: calls / dependencies
+<color:#dc2626>Red arrows: asynchronous outbox path</color>
+Dotted arrow: worker telemetry
+endlegend
+
+note bottom
+|= Implementation Detail |= Description |
+| Repositories | Appointment, Branch, Service, Customer, Outbox, RefreshToken, BranchMembership |
+| UnitOfWork | SELECT FOR UPDATE on branch_services; optional advisory lock; deadlock / serialization retries |
+| Outbox claim | ClaimPendingAsync(limit, now); SELECT ... FOR UPDATE SKIP LOCKED |
+| Outbox result | MarkPublishedAsync / MarkFailedAsync |
+| Outbox metadata | attempts, next_attempt_at, locked_until, dead_lettered, last_error |
+| Async boundary | Request transaction persists events; worker handles eventual side effects |
+| Observability | ObservabilityFeatureExtensions (OpenTelemetry) |
+end note
+
+@enduml
